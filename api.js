@@ -1,5 +1,6 @@
 // WSR Slide Creator - client-side logic
 (function () {
+    let pptObj = {};
 	const teamSelect = document.getElementById('teamSelect');
 	const appContent = document.getElementById('appContent');
 	const selectedTeamEl = document.getElementById('selectedTeam');
@@ -19,6 +20,21 @@
 	let members = [];
 	let initialState = null;
 
+    function loadTeamData() {
+        return fetch('team_data.json').then(r => r.json()).then(data => {
+            data.forEach(team => {
+                if (team.teamName === teamSelect.value) {
+                    pptObj.teamName = team.teamName;
+                    pptObj.sprintName = getSprintName();
+                    pptObj.accLead = team.AccLead;
+                    pptObj.clientLead = team.ClientLead;
+                    pptObj.clientPO = team.ClientPO;
+                    pptObj.accDevCounts = team.AccDevCounts;
+                }
+            });
+        });
+    }
+
 	function loadData() {
 		return fetch('sprint_data.json').then(r => r.json()).then(data => {
 			rawData = data;
@@ -37,6 +53,17 @@
 			entry.estimatedHours += actual;
 			entry.storyPoints += plan;
 		});
+
+        pptObj.teamName = teamSelect.value || 'Team';
+        pptObj.sprintName = getSprintName();
+
+        pptObj.plannedVelocity = rawData.reduce((sum, item) => sum + Number(item.PlanEstimate || 0), 0);
+        pptObj.acceptedVelocity = rawData.reduce((sum, item) => sum + ((item.ScheduleState === 'Accepted') ? Number(item.PlanEstimate || 0) : 0), 0);
+        pptObj.velRatio = pptObj.plannedVelocity ? (pptObj.acceptedVelocity / pptObj.plannedVelocity * 100).toFixed(2) : 0.0;
+        pptObj.currSprintUserStoryCount = rawData.filter(item => item._type === 'HierarchicalRequirement').length;
+        pptObj.currSprintDefectCount = rawData.filter(item => item._type === 'Defect').length;
+        pptObj.currSprintUserStoryAcceptedCount = rawData.filter(item => item._type === 'HierarchicalRequirement' && item.ScheduleState === 'Accepted').length;
+        pptObj.currSprintDefectAcceptedCount = rawData.filter(item => item._type === 'Defect' && item.ScheduleState === 'Accepted').length;
 
 		members = Array.from(map.values()).map(m => ({
 			name: m.name,
@@ -188,6 +215,7 @@
 	}
 
 	function init() {
+        loadTeamData();
 		loadData().then(() => {
 			teamSelect.addEventListener('change', onTeamChange);
 			generateBtn.addEventListener('click', onGenerate);
@@ -229,33 +257,68 @@
 		}));
 	}
 
-	function onGenerate() {
-		const dri = collectDRIData();
-		const sels = collectSelectedMembers();
+	function formatCurrentDate() {
+		const now = new Date();
+		const day = String(now.getDate()).padStart(2, '0');
+		const month = String(now.getMonth() + 1).padStart(2, '0');
+		const year = now.getFullYear();
+		return `${day}/${month}/${year}`;
+	}
 
-		const PptxClass = window.PptxGenJS || window.PPTXGenJS || window.pptxgen || window.pptxgenjs;
-		if (!PptxClass) {
-			alert('PPTXGenJS library not loaded. Please ensure the CDN is reachable.');
-			return;
+	async function generatePptFromTemplate(teamName) {
+		const templateUrl = 'WSR-Template.pptx';
+		const formattedDate = formatCurrentDate();
+		const replacements = [
+			{ find: '$TEAM_NAME', replace: teamName },
+			{ find: '$DATE', replace: formattedDate },
+            { find: '$ACC_LEAD', replace: pptObj.accLead },
+            { find: '$CLIENT_LEAD', replace: pptObj.clientLead },
+            { find: '$CLIENT_PO', replace: pptObj.clientPO },
+            { find: '$ACC_DEV_COUNT', replace: pptObj.accDevCounts },
+            { find: '$N_PV', replace: pptObj.plannedVelocity },
+            { find: '$N_AV', replace: pptObj.acceptedVelocity },
+            { find: '$N_VR', replace: pptObj.velRatio },
+            { find: '$N_US', replace: pptObj.currSprintUserStoryCount },
+            { find: '$N_DF', replace: pptObj.currSprintDefectCount },
+            { find: '$N_DUS', replace: pptObj.currSprintUserStoryAcceptedCount },
+            { find: '$N_FDF', replace: pptObj.currSprintDefectAcceptedCount },
+		];
+
+		try {
+			const response = await fetch(templateUrl);
+			if (!response.ok) throw new Error(`Template fetch failed: ${response.status}`);
+			const arrayBuffer = await response.arrayBuffer();
+			const zip = await JSZip.loadAsync(arrayBuffer);
+
+			const xmlFiles = Object.values(zip.files).filter(file => !file.dir && file.name.endsWith('.xml'));
+			await Promise.all(xmlFiles.map(async file => {
+				const content = await file.async('string');
+				let updated = content;
+				replacements.forEach(rep => {
+					updated = updated.split(rep.find).join(rep.replace);
+				});
+				if (updated !== content) zip.file(file.name, updated);
+			}));
+
+			const blob = await zip.generateAsync({ type: 'blob' });
+			const fileName = `WSR_${teamName.replace(/\s+/g, '_')}_${formattedDate.replace(/\//g, '-')}.pptx`;
+			const url = URL.createObjectURL(blob);
+			const link = document.createElement('a');
+			link.href = url;
+			link.download = fileName;
+			document.body.appendChild(link);
+			link.click();
+			link.remove();
+			URL.revokeObjectURL(url);
+		} catch (err) {
+			console.error('Template generation failed:', err);
+			alert(`Unable to create PPT from template: ${err.message}`);
 		}
-		const pptx = new PptxClass();
-		const slide = pptx.addSlide();
-		slide.addText('WSR Slide - ' + (teamSelect.value||''), { x:0.5, y:0.25, fontSize:18, bold:true });
+	}
 
-		// DRI table
-		const driTable = [ ['Category','Title','Owner','Mitigation Plan'] ];
-		dri.forEach(r => driTable.push([r.category, r.title || '', r.owner || '', r.plan || '']));
-		slide.addTable(driTable, { x:0.5, y:0.8, w:9, colW:[1.2,3.0,2.0,3.0], fontSize:12, border:{pt:0.5,color:'666666'} });
-
-		// Members table after some vertical offset
-		const membersTable = [ ['Name','Estimated Hrs','Story Pts','Leave Days','Leave Dates','Available Hrs'] ];
-		sels.forEach(m => membersTable.push([m.name, String(m.estimatedHours), String(m.storyPoints), String(m.leaveDays), (m.leaveDates||[]).join(', '), String(m.availableHours)]));
-		slide.addTable(membersTable, { x:0.5, y:3.2, w:9, colW:[2.2,1.2,1.0,1.0,2.2,1.2], fontSize:11, border:{pt:0.5,color:'666666'} });
-
-		// footer/team
-		slide.addText(teamSelect.value || '', { x:0.5, y:6.8, fontSize:12, color:'444444' });
-
-		pptx.writeFile({ fileName: `WSR_${(teamSelect.value||'team').replace(/\s+/g,'_')}.pptx` });
+	function onGenerate() {
+		const team = teamSelect.value || 'Team';
+		generatePptFromTemplate(team);
 	}
 
 	function onReset() {
