@@ -21,6 +21,28 @@
         </select>
       </section>
 
+      <section id="teamSummary" class="mb-4 hidden bg-white p-4 rounded shadow">
+        <h2 class="text-lg font-semibold mb-1" id="summaryTeamTitle">Team Summary</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div class="rounded-lg border border-gray-200 bg-blue-50 p-4">
+            <p class="text-sm text-gray-600">Total Estimated Hours</p>
+            <p class="mt-2 text-2xl font-bold text-blue-800" id="summaryHours">0</p>
+          </div>
+          <div class="rounded-lg border border-gray-200 bg-green-50 p-4">
+            <p class="text-sm text-gray-600">Total Story Points</p>
+            <p class="mt-2 text-2xl font-bold text-green-800" id="summaryPoints">0</p>
+          </div>
+          <div class="rounded-lg border border-gray-200 bg-yellow-50 p-4">
+            <p class="text-sm text-gray-600">Accepted Story Points</p>
+            <p class="mt-2 text-2xl font-bold text-yellow-800" id="summaryAcceptedPoints">0</p>
+          </div>
+          <div class="rounded-lg border border-gray-200 bg-purple-50 p-4">
+            <p class="text-sm text-gray-600">Team Members Count</p>
+            <p class="mt-2 text-2xl font-bold text-purple-800" id="summaryMemberCount">0</p>
+          </div>
+        </div>
+      </section>
+
       <main id="appContent" class="hidden">
         <div class="mb-6 bg-white p-4 rounded shadow">
           <h2 class="text-xl font-medium mb-3">Decision / Risk / Issues</h2>

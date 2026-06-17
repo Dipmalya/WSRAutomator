@@ -7,6 +7,13 @@
 	const membersTableBody = document.getElementById('membersTableBody');
 	const generateBtn = document.getElementById('generateBtn');
 	const resetBtn = document.getElementById('resetBtn');
+	const teamSummarySection = document.getElementById('teamSummary');
+	const summaryTeamTitle = document.getElementById('summaryTeamTitle');
+	const summarySprintName = document.getElementById('summarySprintName');
+	const summaryHours = document.getElementById('summaryHours');
+	const summaryPoints = document.getElementById('summaryPoints');
+	const summaryAcceptedPoints = document.getElementById('summaryAcceptedPoints');
+	const summaryMemberCount = document.getElementById('summaryMemberCount');
 
 	let rawData = [];
 	let members = [];
@@ -24,12 +31,10 @@
 		rawData.forEach(item => {
 			const name = item.Owner && item.Owner._refObjectName ? item.Owner._refObjectName : 'Unassigned';
 			const actual = Number(item.TaskActualTotal || 0);
-			const remaining = Number(item.TaskRemainingTotal || 0);
 			const plan = Number(item.PlanEstimate || 0);
-			const totalHours = actual;
 			if (!map.has(name)) map.set(name, { name, estimatedHours: 0, storyPoints: 0 });
 			const entry = map.get(name);
-			entry.estimatedHours += totalHours;
+			entry.estimatedHours += actual;
 			entry.storyPoints += plan;
 		});
 
@@ -86,6 +91,28 @@
 
 		attachMemberEvents();
 		renderAllDateLists();
+	}
+
+	function getSprintName() {
+		const itemWithIteration = rawData.find(item => item.Iteration && item.Iteration._refObjectName);
+		return itemWithIteration ? itemWithIteration.Iteration._refObjectName : 'Unknown Sprint';
+	}
+
+	function updateSummary(team) {
+		const totalHours = members.reduce((sum, m) => sum + m.estimatedHours, 0);
+		const totalPoints = members.reduce((sum, m) => sum + m.storyPoints, 0);
+		const acceptedPoints = rawData.reduce((sum, item) => {
+			return sum + ((item.ScheduleState === 'Accepted') ? Number(item.PlanEstimate || 0) : 0);
+		}, 0);
+		const memberCount = members.length;
+		const sprintName = getSprintName();
+
+		summaryTeamTitle.textContent = `${team} - ${sprintName}`;
+		summaryHours.textContent = Math.round(totalHours * 10) / 10;
+		summaryPoints.textContent = totalPoints;
+		summaryAcceptedPoints.textContent = acceptedPoints;
+		summaryMemberCount.textContent = memberCount;
+		teamSummarySection.classList.remove('hidden');
 	}
 
 	function calcAvailable(m) {
@@ -176,6 +203,7 @@
 		appContent.classList.remove('hidden');
 		renderDRITable();
 		renderMembers();
+		updateSummary(team);
 	}
 
 	function collectDRIData() {
@@ -235,6 +263,7 @@
 		members = JSON.parse(JSON.stringify(initialState.members));
 		renderDRITable();
 		renderMembers();
+		updateSummary(teamSelect.value);
 	}
 
 	// start
