@@ -105,12 +105,12 @@
 				<td class="px-3 py-2"><input type="number" min="0" data-idx="${idx}" class="w-20 border rounded px-2 py-1 leave-days" value="${m.leaveDays}"></td>
 				<td class="px-3 py-2">
 					<div class="flex items-center gap-2">
+						<input type="checkbox" data-idx="${idx}" class="member-select">
 						<input type="date" data-idx="${idx}" class="date-input border rounded px-2 py-1">
 						<button data-idx="${idx}" class="add-date bg-indigo-600 text-white px-2 py-1 rounded text-sm">Add</button>
 					</div>
 					<div class="mt-2 date-list" data-idx="${idx}"></div>
 				</td>
-				<td class="px-3 py-2"><input class="w-28 border rounded px-2 py-1 muted available-hours" value="${calcAvailable(m)}" readonly></td>
 			`;
 
 			membersTableBody.appendChild(tr);
@@ -268,6 +268,8 @@
 	async function generatePptFromTemplate(teamName) {
 		const templateUrl = 'WSR-Template.pptx';
 		const formattedDate = formatCurrentDate();
+		const driTableData = collectDRIData();
+
 		const replacements = [
 			{ find: '$TEAM_NAME', replace: teamName },
 			{ find: '$DATE', replace: formattedDate },
@@ -282,6 +284,15 @@
             { find: '$N_DF', replace: pptObj.currSprintDefectCount },
             { find: '$N_DUS', replace: pptObj.currSprintUserStoryAcceptedCount },
             { find: '$N_FDF', replace: pptObj.currSprintDefectAcceptedCount },
+			{ find: '$D_T', replace: driTableData[0].title || '' },
+			{ find: '$D_O', replace: driTableData[0].owner || '' },
+			{ find: '$D_MP', replace: driTableData[0].plan || '' },
+			{ find: '$R_T', replace: driTableData[1].title || '' },
+			{ find: '$R_O', replace: driTableData[1].owner || '' },
+			{ find: '$R_MP', replace: driTableData[1].plan || '' },
+			{ find: '$I_T', replace: driTableData[2].title || '' },
+			{ find: '$I_O', replace: driTableData[2].owner || '' },
+			{ find: '$I_MP', replace: driTableData[2].plan || '' },
 		];
 
 		try {
