@@ -1,0 +1,28 @@
+[
+    {
+        "Name": "Sprint 11",
+        "PlannedVelocity": 20,
+        "ActualVelocity": 18,
+        "IterationState": "Completed",
+        "DevStoryCount": 5,
+        "CompletedDevStoryCount": 4,
+        "NonDevStoryCount": 2,
+        "FixedDefectCount": 1,
+        "UnfinishedStoryCount": 1,
+        "CodeCommitCount": 15,
+        "SonarCodeCoverage": 85.0
+    },
+    {
+        "Name": "Sprint 10",
+        "PlannedVelocity": 25,
+        "ActualVelocity": 22,
+        "IterationState": "Completed",
+        "DevStoryCount": 6,
+        "CompletedDevStoryCount": 5,
+        "NonDevStoryCount": 3,
+        "FixedDefectCount": 2,
+        "UnfinishedStoryCount": 1,
+        "CodeCommitCount": 20,
+        "SonarCodeCoverage": 88.0
+    }
+]

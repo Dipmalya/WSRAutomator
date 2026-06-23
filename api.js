@@ -20,6 +20,7 @@
 	let members = [];
 	let holidays = [];
 	let initialState = null;
+	let previousSprintData = [];
 
     function loadTeamData() {
         return fetch('team_data.json').then(r => r.json()).then(data => {
@@ -40,6 +41,13 @@
 		return fetch('sprint_data.json').then(r => r.json()).then(data => {
 			rawData = data;
 			processMembers();
+		});
+	}
+
+	function loadPreviousSprintData() {
+		return fetch('sprint_prevdata.json').then(r => r.json()).then(data => {
+			debugger;
+			previousSprintData = data;
 		});
 	}
 
@@ -306,6 +314,7 @@
 					}
 				});
 			}
+			loadPreviousSprintData();
 			// auto show when team selected (single team for now)
 			onTeamChange();
 		}).catch(err => console.error('Failed to load data', err));
@@ -370,12 +379,13 @@
 		const driTableData = collectDRIData();
 
 		const holidayStr = holidays.length > 0 ? holidays.join(', ') : '';
+		const achievementData = getAchievementData();
 
 		const replacements = [
 			{ find: '$TEAM_NAME', replace: teamName },
 			{ find: '$DATE', replace: formattedDate },
 			{ find: '$HOLIDAYS', replace: holidayStr },
-			{ find: '$ACHIEVEMENT_DATA', replace: getAchievementData() },
+			{ find: '$ACHIEVEMENT_DATA', replace: achievementData },
             { find: '$ACC_LEAD', replace: pptObj.accLead },
             { find: '$CLIENT_LEAD', replace: pptObj.clientLead },
             { find: '$CLIENT_PO', replace: pptObj.clientPO },
@@ -405,6 +415,24 @@
 			{ find: '$PTO_DAY', replace: getUpcomingPlannedLeaves().length },
 			{ find: '$PTO_UL', replace: getUnplannedLeaves().length },
 			{ find: '$HOL_DATA', replace: holidays.join(', ') },
+			...previousSprintData.flatMap((prev, idx) => {
+				const pv = prev.PlannedVelocity || prev.plannedVelocity || 0;
+				const av = prev.ActualVelocity || prev.actualVelocity || 0;
+				const velRatio = pv ? ((Number(av) / Number(pv) * 100).toFixed(2)) : '0';
+				return [
+					{ find: `$SPRINT_${idx + 1}N`, replace: prev.Name || prev.sprintName || '' },
+					{ find: `$N${idx + 1}_PV`, replace: pv.toString() || '0' },
+					{ find: `$N${idx + 1}_AV`, replace: av.toString() || '0' },
+					{ find: `$N${idx + 1}_VR`, replace: velRatio.toString() || '0' },
+					{ find: `$N${idx + 1}_US`, replace: prev.DevStoryCount?.toString() || '0' },
+					{ find: `$N${idx + 1}_DF`, replace: prev.FixedDefectCount?.toString() || '0' },
+					{ find: `$N${idx + 1}_DUS`, replace: prev.CompletedDevStoryCount?.toString() || '0' },
+					{ find: `$N${idx + 1}_FDF`, replace: prev.FixedDefectCount?.toString() || '0' },
+					{ find: `$N${idx + 1}_SUS`, replace: prev.UnfinishedStoryCount?.toString() || '0' },
+					{ find: `$N${idx + 1}_CC`, replace: prev.CodeCommitCount?.toString() || '0' },
+					{ find: `$N${idx + 1}_SCC`, replace: prev.SonarCodeCoverage?.toString() || '0' },
+				];
+			})
 		];
 
 		try {
