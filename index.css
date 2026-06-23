@@ -1,7 +1,8 @@
 body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
 table th, table td { border: 1px solid #e5e7eb; }
 input[type="date"] { padding: 6px; }
-.date-chip { background: #eef2ff; padding: 4px 8px; border-radius: 6px; margin-right:6px; display:inline-flex; align-items:center; gap:6px }
+.date-chip-planned { background: #e5fac2; padding: 4px 8px; border-radius: 6px; margin-right:6px; display:inline-flex; align-items:center; gap:6px }
+.date-chip-unplanned { background: #f8cc79; padding: 4px 8px; border-radius: 6px; margin-right:6px; display:inline-flex; align-items:center; gap:6px }
 .date-list { display:flex; gap:6px; flex-wrap:wrap }
 .muted { color: #6b7280 }
 

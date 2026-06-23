@@ -18,6 +18,7 @@
 
 	let rawData = [];
 	let members = [];
+	let holidays = [];
 	let initialState = null;
 
     function loadTeamData() {
@@ -70,7 +71,7 @@
 			estimatedHours: Math.round(m.estimatedHours*10)/10,
 			storyPoints: m.storyPoints,
 			leaveDays: 0,
-			leaveDates: [],
+			leaveDates: [], // { date: 'YYYY-MM-DD', planned: true/false }
 			selected: true,
 		}));
 
@@ -105,7 +106,8 @@
 				<td class="px-3 py-2"><input type="number" min="0" data-idx="${idx}" class="w-20 border rounded px-2 py-1 leave-days" value="${m.leaveDays}"></td>
 				<td class="px-3 py-2">
 					<div class="flex items-center gap-2">
-						<input type="checkbox" data-idx="${idx}" class="member-select">
+						<label for="planned-leave-${idx}" class="text-xs">Planned</label>
+						<input type="checkbox" id="planned-leave-${idx}" data-idx="${idx}" class="planned-leave-select pt-2">
 						<input type="date" data-idx="${idx}" class="date-input border rounded px-2 py-1">
 						<button data-idx="${idx}" class="add-date bg-indigo-600 text-white px-2 py-1 rounded text-sm">Add</button>
 					</div>
@@ -166,9 +168,13 @@
 			btn.addEventListener('click', e => {
 				const idx = Number(e.target.dataset.idx);
 				const row = document.querySelector(`.date-input[data-idx="${idx}"]`);
+				const plannedCheckbox = document.querySelector(`.planned-leave-select[data-idx="${idx}"]`);
 				const val = row.value;
+				const planned = plannedCheckbox ? plannedCheckbox.checked : false;
 				if (val) {
-					if (!members[idx].leaveDates.includes(val)) members[idx].leaveDates.push(val);
+					if (!members[idx].leaveDates.some(ld => ld.date === val)) {
+						members[idx].leaveDates.push({ date: val, planned });
+					}
 					// sync leaveDays to number of leaveDates
 					members[idx].leaveDays = members[idx].leaveDates.length;
 					const leaveInput = document.querySelector(`.leave-days[data-idx="${idx}"]`);
@@ -189,8 +195,8 @@
 		container.innerHTML = '';
 		members[idx].leaveDates.forEach((d, i) => {
 			const chip = document.createElement('div');
-			chip.className = 'date-chip';
-			chip.innerHTML = `<span>${d}</span><button data-idx="${idx}" data-i="${i}" class="remove-date text-xs text-red-600">✕</button>`;
+			chip.className = d.planned ? 'date-chip-planned' : 'date-chip-unplanned';
+			chip.innerHTML = `<span>${d.date}</span><button data-idx="${idx}" data-i="${i}" class="remove-date text-xs text-red-600">✕</button>`;
 			container.appendChild(chip);
 		});
 		container.querySelectorAll('.remove-date').forEach(btn => {
@@ -208,6 +214,75 @@
 		});
 	}
 
+	function getUpcomingPlannedLeaves() {
+		const today = new Date();
+		return members.flatMap(m => m.leaveDates.filter(ld => ld.planned && new Date(ld.date) >= today).map(ld => ({ name: m.name, date: ld.date })));
+	}
+
+	function getUnplannedLeaves() {
+		return members.flatMap(m => m.leaveDates.filter(ld => !ld.planned).map(ld => ({ name: m.name, date: ld.date })));
+	}
+
+	function formatLeavesSummary(leaves) {
+		if (!leaves || leaves.length === 0) return '';
+		// group by name
+		const byName = leaves.reduce((acc, ld) => {
+			(acc[ld.name] = acc[ld.name] || []).push(ld.date);
+			return acc;
+		}, {});
+
+		const pad = n => String(n).padStart(2, '0');
+		const fmt = (dateUtc, style) => {
+			const d = new Date(dateUtc);
+			const mm = pad(d.getMonth() + 1);
+			const dd = pad(d.getDate());
+			return style === 'slash' ? `${mm}/${dd}` : `${mm}-${dd}`;
+		};
+
+		const summaries = Object.keys(byName).map(name => {
+			const uniqueDates = Array.from(new Set(byName[name])).sort();
+			const days = uniqueDates.map(s => {
+				const [y, m, d] = s.split('-').map(Number);
+				return Date.UTC(y, m - 1, d);
+			}).sort((a, b) => a - b);
+
+			const parts = [];
+			let i = 0;
+			while (i < days.length) {
+				let j = i;
+				while (j + 1 < days.length && days[j + 1] === days[j] + 24 * 60 * 60 * 1000) j++;
+				if (i === j) {
+					parts.push(fmt(days[i], 'dash'));
+				} else {
+					parts.push(`${fmt(days[i], 'slash')}-${fmt(days[j], 'slash')}`);
+				}
+				i = j + 1;
+			}
+
+			return `${name.split(' ')[0]}(${parts.join(', ')})`;
+		});
+
+		return summaries.join(', ');
+	}
+
+	function renderHolidayList() {
+		const container = document.querySelector('#holidayList');
+		container.innerHTML = '';
+		holidays.forEach((date, i) => {
+			const chip = document.createElement('div');
+			chip.className = 'date-chip';
+			chip.innerHTML = `<span>${date}</span><button data-i="${i}" class="remove-holiday text-xs text-red-600">✕</button>`;
+			container.appendChild(chip);
+		});
+		container.querySelectorAll('.remove-holiday').forEach(btn => {
+			btn.addEventListener('click', e => {
+				const i = Number(e.target.dataset.i);
+				holidays.splice(i, 1);
+				renderHolidayList();
+			});
+		});
+	}
+
 	function updateAvailableRow(idx) {
 		const row = membersTableBody.querySelectorAll('tr')[idx];
 		const availInput = row.querySelector('.available-hours');
@@ -220,6 +295,17 @@
 			teamSelect.addEventListener('change', onTeamChange);
 			generateBtn.addEventListener('click', onGenerate);
 			resetBtn.addEventListener('click', onReset);
+			const addHolidayBtn = document.querySelector('#addHolidayBtn');
+			if (addHolidayBtn) {
+				addHolidayBtn.addEventListener('click', () => {
+					const holidayDate = document.querySelector('#upcomingHolidays').value;
+					if (holidayDate && !holidays.includes(holidayDate)) {
+						holidays.push(holidayDate);
+						document.querySelector('#upcomingHolidays').value = '';
+						renderHolidayList();
+					}
+				});
+			}
 			// auto show when team selected (single team for now)
 			onTeamChange();
 		}).catch(err => console.error('Failed to load data', err));
@@ -252,9 +338,22 @@
 			estimatedHours: m.estimatedHours,
 			storyPoints: m.storyPoints,
 			leaveDays: m.leaveDays,
-			leaveDates: m.leaveDates.slice(),
+			leaveDates: m.leaveDates.map(ld => ld.date),
+			plannedLeaves: m.leaveDates.filter(ld => ld.planned).map(ld => ld.date),
+			unplannedLeaves: m.leaveDates.filter(ld => !ld.planned).map(ld => ld.date),
 			availableHours: calcAvailable(m),
 		}));
+	}
+
+	function getAchievementData() {
+		const input = document.querySelector('#achievementInput');
+		if (!input) return '';
+		return input.value
+			.split('\n')
+			.map(line => line.trim())
+			.filter(Boolean)
+			.map(line => `• ${line}`)
+			.join('\n');
 	}
 
 	function formatCurrentDate() {
@@ -270,9 +369,13 @@
 		const formattedDate = formatCurrentDate();
 		const driTableData = collectDRIData();
 
+		const holidayStr = holidays.length > 0 ? holidays.join(', ') : '';
+
 		const replacements = [
 			{ find: '$TEAM_NAME', replace: teamName },
 			{ find: '$DATE', replace: formattedDate },
+			{ find: '$HOLIDAYS', replace: holidayStr },
+			{ find: '$ACHIEVEMENT_DATA', replace: getAchievementData() },
             { find: '$ACC_LEAD', replace: pptObj.accLead },
             { find: '$CLIENT_LEAD', replace: pptObj.clientLead },
             { find: '$CLIENT_PO', replace: pptObj.clientPO },
@@ -293,6 +396,15 @@
 			{ find: '$I_T', replace: driTableData[2].title || '' },
 			{ find: '$I_O', replace: driTableData[2].owner || '' },
 			{ find: '$I_MP', replace: driTableData[2].plan || '' },
+			{ find: '$N_SUS', replace: document.querySelector('#unfinishedStories').value || '0' },
+			{ find: '$N_CC', replace: document.querySelector('#codeCommits').value || '0' },
+			{ find: '$N_SCC', replace: document.querySelector('#sonarCoverage').value || '0' },
+			{ find: '$SPRINT_N', replace: pptObj.sprintName || '' },
+			{ find: '$PTO_DATA', replace: formatLeavesSummary(getUpcomingPlannedLeaves()) },
+			{ find: '$PTO_UL_DATA', replace: formatLeavesSummary(getUnplannedLeaves()) },
+			{ find: '$PTO_DAY', replace: getUpcomingPlannedLeaves().length },
+			{ find: '$PTO_UL', replace: getUnplannedLeaves().length },
+			{ find: '$HOL_DATA', replace: holidays.join(', ') },
 		];
 
 		try {
